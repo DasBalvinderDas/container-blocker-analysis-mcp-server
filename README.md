@@ -8,6 +8,7 @@ An MCP server built with [Google Agent Development Kit (ADK)](https://google.git
 - **HTML Report Generation**: Professional, styled HTML reports with color-coded impact levels and summary statistics
 - **PDF Report Generation**: Structured PDF reports using ReportLab with tables and color-coded formatting
 - **Solution Reports**: Detailed solution/remediation HTML reports for specific blockers
+- **Skills (Workflows)**: Pre-defined step-by-step workflows using ADK Skills for common tasks
 
 ## Blocker Types Analyzed
 
@@ -67,6 +68,39 @@ Generates a styled HTML solution report for a specific blocker.
 - `solution_content` (required): HTML-formatted solution content
 - `output_path` (optional): File path to save
 
+## Skills (Workflows)
+
+Skills are pre-defined step-by-step workflows powered by [ADK Skills](https://google.github.io/adk-docs/skills/). The agent automatically discovers them via `SkillToolset` and exposes `list_skills` / `load_skill` tools.
+
+| Skill | Description | When to Use |
+|-------|-------------|-------------|
+| `full-analysis` | Complete end-to-end analysis: extract code, check all 15 blockers, generate HTML + PDF reports | "Analyze my app for containerization issues" |
+| `blocker-report` | Targeted analysis for specific blocker types with focused reports | "Check for hardcoded paths and DB connection issues" |
+| `solution-generator` | Generate detailed remediation steps with code changes, effort estimation, and risks | "How do I fix the hardcoded secrets blocker?" |
+| `quick-scan` | Fast text-based assessment without generating report files | "Is my app ready for containers?" |
+
+### Skill Structure
+
+Each skill is a directory under `skills/` with a `SKILL.md` file:
+
+```
+skills/
+├── full-analysis/
+│   ├── SKILL.md                        # Workflow instructions
+│   ├── references/
+│   │   └── blocker_definitions.md      # Detailed blocker descriptions
+│   └── assets/
+│       └── issue_schema.json           # JSON schema for analysis output
+├── blocker-report/
+│   └── SKILL.md
+├── solution-generator/
+│   ├── SKILL.md
+│   └── references/
+│       └── solution_template.md        # HTML template guide for solutions
+└── quick-scan/
+    └── SKILL.md
+```
+
 ## Installation
 
 ### Prerequisites
@@ -120,15 +154,20 @@ adk run container_blocker_analysis
 ```
 container_blocker_analysis/
 ├── __init__.py
-├── agent.py                   # ADK agent definition (root_agent)
+├── agent.py                   # ADK agent definition (root_agent + SkillToolset)
 ├── tools/
 │   ├── __init__.py
 │   ├── analyze_code.py        # Code extraction + analysis prompt builder
 │   └── generate_report.py     # HTML/PDF/Solution report generation
-└── utils/
-    ├── __init__.py
-    ├── code_extractor.py      # Extract code from zip/git/directory/inline
-    └── report_generator.py    # HTML templates + PDF generation (ReportLab)
+├── utils/
+│   ├── __init__.py
+│   ├── code_extractor.py      # Extract code from zip/git/directory/inline
+│   └── report_generator.py    # HTML templates + PDF generation (ReportLab)
+└── skills/                    # ADK Skills (workflows)
+    ├── full-analysis/         # Complete analysis workflow
+    ├── blocker-report/        # Targeted blocker analysis
+    ├── solution-generator/    # Solution/remediation generation
+    └── quick-scan/            # Quick readiness assessment
 ```
 
 ### Workflow Example

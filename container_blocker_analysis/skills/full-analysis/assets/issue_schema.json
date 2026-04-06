@@ -1,0 +1,47 @@
+{
+  "type": "object",
+  "required": ["issues", "summary"],
+  "properties": {
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "issue_name",
+          "exists_or_not",
+          "issue_explanation",
+          "impact_on_containerization",
+          "recommended_services"
+        ],
+        "properties": {
+          "issue_name": {
+            "type": "string",
+            "description": "Name of the containerization blocker"
+          },
+          "exists_or_not": {
+            "type": "string",
+            "enum": ["Yes", "No"],
+            "description": "Whether the issue was found in the code"
+          },
+          "issue_explanation": {
+            "type": "string",
+            "description": "2-3 line explanation of the issue"
+          },
+          "impact_on_containerization": {
+            "type": "string",
+            "enum": ["Low", "Medium", "High"],
+            "description": "Impact level on containerization"
+          },
+          "recommended_services": {
+            "type": "string",
+            "description": "Recommended cloud services to address this issue"
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "string",
+      "description": "Overall assessment of the application's container-readiness"
+    }
+  }
+}

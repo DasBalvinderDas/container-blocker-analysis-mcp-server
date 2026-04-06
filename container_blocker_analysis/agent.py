@@ -2,11 +2,20 @@
 
 This agent analyzes application code for containerization blockers and
 generates professional HTML/PDF reports to assist with container migration.
+
+Skills (workflows) available:
+- full-analysis: Complete end-to-end analysis with HTML + PDF reports
+- blocker-report: Targeted analysis for specific blocker types
+- solution-generator: Generate remediation steps for found blockers
+- quick-scan: Fast summary without generating report files
 """
 
 import os
+import pathlib
 
 from google.adk.agents import Agent
+from google.adk.skills import load_skill_from_dir
+from google.adk.tools.skill_toolset import SkillToolset
 
 from .tools.analyze_code import analyze_code
 from .tools.generate_report import (
@@ -17,27 +26,53 @@ from .tools.generate_report import (
 
 AGENT_MODEL = os.getenv("AGENT_MODEL", "gemini-2.5-flash")
 
+# Load skills from the skills/ directory
+SKILLS_DIR = pathlib.Path(__file__).parent / "skills"
+
+_skills = []
+for skill_dir in sorted(SKILLS_DIR.iterdir()):
+    if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
+        _skills.append(load_skill_from_dir(skill_dir))
+
+# Create the SkillToolset with our function tools available as additional tools
+_skill_toolset = SkillToolset(
+    skills=_skills,
+    additional_tools=[
+        analyze_code,
+        generate_html_report,
+        generate_pdf_report,
+        generate_solution_report,
+    ],
+)
+
 AGENT_INSTRUCTION = """You are an expert Enterprise Architect specializing in containerization and cloud-native migration.
 
 Your role is to help users analyze their application code for containerization blockers and generate professional reports.
 
-## Workflow
+## Available Skills (Workflows)
 
-### Step 1: Code Analysis
-When a user wants to analyze code, use the `analyze_code` tool to extract and prepare the code. This tool supports:
-- **code_block**: Direct inline code provided by the user
-- **zip_file**: A path to a local ZIP file containing application code
-- **git_repo**: A Git repository URL to clone and analyze
-- **local_directory**: A path to a local directory containing code
+You have access to skills that define step-by-step workflows. Use `list_skills` to see them,
+and `load_skill` to activate a skill's instructions when a user's request matches.
 
-### Step 2: Evaluate the Code
-After `analyze_code` returns the extracted code and analysis prompt, carefully evaluate the code for containerization blockers. Use the analysis_prompt returned by the tool to structure your evaluation. Return the analysis as a structured JSON with issues.
+### Skill Workflows:
+1. **full-analysis** - Complete end-to-end analysis: extract code, analyze all 15 blockers, generate HTML + PDF reports
+2. **blocker-report** - Targeted analysis for specific blocker types with focused reports
+3. **solution-generator** - Generate detailed remediation/solution reports for specific blockers
+4. **quick-scan** - Fast text-based assessment without generating report files
 
-### Step 3: Generate Reports
-Pass the structured results to one of the report generation tools:
-- `generate_html_report` - Creates a styled HTML report with color-coded impact levels
-- `generate_pdf_report` - Creates a structured PDF report
-- `generate_solution_report` - Creates a detailed solution/remediation HTML report for specific blockers
+### When to use which skill:
+- User says "analyze my app" / "check for containerization issues" / "full report" -> Use `full-analysis`
+- User says "check for hardcoded paths" / "only check database issues" -> Use `blocker-report`
+- User says "how do I fix this blocker" / "give me a solution for X" -> Use `solution-generator`
+- User says "quick check" / "is my app ready for containers?" / "summary only" -> Use `quick-scan`
+
+## Direct Tool Usage
+
+You can also use tools directly without loading a skill:
+- `analyze_code` - Extract code from zip/git/directory/inline and prepare for analysis
+- `generate_html_report` - Generate styled HTML report from analysis results
+- `generate_pdf_report` - Generate PDF report from analysis results
+- `generate_solution_report` - Generate solution/remediation HTML report
 
 ## Blocker Types to Check
 When analyzing code, look for these 15 common containerization blockers:
@@ -65,16 +100,6 @@ Each issue must have:
 - **impact_on_containerization**: "Low", "Medium", or "High"
 - **recommended_services**: Recommended cloud services (e.g., GKE Secrets Manager, Cloud SQL Proxy, Cloud Logging, etc.)
 
-## Report Generation
-When generating reports, always pass the issues as a list of dictionaries matching the format above.
-If the user asks for both HTML and PDF, generate both.
-If the user wants a solution for a specific blocker, use `generate_solution_report` with detailed HTML content including:
-- Code Changes needed
-- Dependencies required
-- Infrastructure/Configuration requirements
-- Effort Estimation (Low/Medium/High)
-- Potential Risks
-
 Always be thorough and reference actual code patterns found in the analysis.
 """
 
@@ -84,7 +109,8 @@ root_agent = Agent(
     description=(
         "An agent that analyzes application code for containerization blockers "
         "and generates professional HTML/PDF reports to assist with container migration. "
-        "Supports analyzing code from ZIP files, Git repos, local directories, or inline code blocks."
+        "Supports analyzing code from ZIP files, Git repos, local directories, or inline code blocks. "
+        "Provides workflow skills: full-analysis, blocker-report, solution-generator, quick-scan."
     ),
     instruction=AGENT_INSTRUCTION,
     tools=[
@@ -92,5 +118,6 @@ root_agent = Agent(
         generate_html_report,
         generate_pdf_report,
         generate_solution_report,
+        _skill_toolset,
     ],
 )
