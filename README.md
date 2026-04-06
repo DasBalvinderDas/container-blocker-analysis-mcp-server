@@ -1,125 +1,172 @@
-# Container Blocker Analysis MCP Server
+# Container Blocker Analysis MCP Server (Google ADK)
 
-An MCP (Model Context Protocol) server that helps analyze application code for containerization blockers and generates professional reports to assist with container migration.
+An MCP server built with [Google Agent Development Kit (ADK)](https://google.github.io/adk-docs/) that analyzes application code for containerization blockers and generates professional reports to assist with container migration.
 
 ## Features
 
 - **Code Analysis**: Analyze code from multiple sources (inline code, zip files, git repos, local directories) for containerization blockers
-- **HTML Report Generation**: Generate professional, styled HTML reports with color-coded impact levels
-- **PDF Report Generation**: Generate structured PDF reports using pdf-lib
-- **Solution Reports**: Generate detailed solution/remediation HTML reports for specific blockers
+- **HTML Report Generation**: Professional, styled HTML reports with color-coded impact levels and summary statistics
+- **PDF Report Generation**: Structured PDF reports using ReportLab with tables and color-coded formatting
+- **Solution Reports**: Detailed solution/remediation HTML reports for specific blockers
 
 ## Blocker Types Analyzed
 
-The server checks for 15 common containerization blockers:
+The agent checks for 15 common containerization blockers:
 
-| Blocker | Description |
-|---------|-------------|
-| Hardcoded File Paths | Absolute paths that won't exist in containers |
-| Local File System Dependencies | Direct filesystem reads/writes |
-| Hardcoded Ports/IP Addresses | Static network configurations |
-| Session State Management | Sticky sessions incompatible with scaling |
-| Environment-Specific Configurations | Configs tied to specific environments |
-| Database Connection Handling | Non-portable DB connection strings |
-| Logging to Local Files | File-based logging instead of stdout |
-| Process-Level Dependencies | Dependencies on host processes |
-| OS-Specific System Calls | Platform-specific OS calls |
-| Large Binary Dependencies | Large binaries that bloat container images |
-| Hardcoded Secrets/Credentials | Embedded secrets in code |
-| Shared Memory / IPC Dependencies | Inter-process communication patterns |
-| Startup/Shutdown Scripts | Host-dependent lifecycle scripts |
-| Host-Dependent Networking | Network configs tied to host |
-| Persistent Local Storage Usage | Data stored locally instead of external storage |
+| # | Blocker | Description |
+|---|---------|-------------|
+| 1 | Hardcoded File Paths | Absolute paths that won't exist in containers |
+| 2 | Local File System Dependencies | Direct filesystem reads/writes |
+| 3 | Hardcoded Ports/IP Addresses | Static network configurations |
+| 4 | Session State Management | Sticky sessions incompatible with scaling |
+| 5 | Environment-Specific Configurations | Configs tied to specific environments |
+| 6 | Database Connection Handling | Non-portable DB connection strings |
+| 7 | Logging to Local Files | File-based logging instead of stdout |
+| 8 | Process-Level Dependencies | Dependencies on host processes |
+| 9 | OS-Specific System Calls | Platform-specific OS calls |
+| 10 | Large Binary Dependencies | Large binaries that bloat container images |
+| 11 | Hardcoded Secrets/Credentials | Embedded secrets in code |
+| 12 | Shared Memory / IPC Dependencies | Inter-process communication patterns |
+| 13 | Startup/Shutdown Scripts | Host-dependent lifecycle scripts |
+| 14 | Host-Dependent Networking | Network configs tied to host |
+| 15 | Persistent Local Storage Usage | Data stored locally instead of external storage |
 
 ## Tools
 
 ### `analyze_code`
 Extracts code from the provided source and returns a structured analysis prompt for the LLM to evaluate.
 
-**Input:**
-- `source_type`: `"code_block"` | `"zip_file"` | `"git_repo"` | `"local_directory"`
-- `source`: The code, file path, git URL, or directory path
-- `language` (optional): Programming language for code blocks
-- `blocker_types` (optional): Specific blockers to check
+**Parameters:**
+- `source_type` (required): `"code_block"` | `"zip_file"` | `"git_repo"` | `"local_directory"`
+- `source` (required): The code, file path, git URL, or directory path
+- `language` (optional): Programming language hint for code blocks
+- `blocker_types` (optional): Specific blockers to check (defaults to all 15)
 - `app_name` (optional): Application name for reports
 
 ### `generate_html_report`
 Generates a styled HTML report from analysis results.
 
-**Input:**
-- `app_name`: Application name
-- `issues`: Array of issue objects with `issue_name`, `exists_or_not`, `issue_explanation`, `impact_on_containerization`, `recommended_services`
+**Parameters:**
+- `app_name` (required): Application name
+- `issues` (required): List of issue dicts with `issue_name`, `exists_or_not`, `issue_explanation`, `impact_on_containerization`, `recommended_services`
+- `blocker_type` (optional): Specific blocker type analyzed
 - `summary` (optional): Overall summary
 - `output_path` (optional): File path to save (returns HTML content if not provided)
 
 ### `generate_pdf_report`
 Generates a PDF report from analysis results.
 
-**Input:** Same as `generate_html_report`
+**Parameters:** Same as `generate_html_report`
 
-### `generate_solution_html`
+### `generate_solution_report`
 Generates a styled HTML solution report for a specific blocker.
 
-**Input:**
-- `app_name`: Application name
-- `blocker_type`: The blocker being solved
-- `solution_content`: HTML-formatted solution content
+**Parameters:**
+- `app_name` (required): Application name
+- `blocker_type` (required): The blocker being solved
+- `solution_content` (required): HTML-formatted solution content
 - `output_path` (optional): File path to save
 
 ## Installation
 
+### Prerequisites
+- Python >= 3.10
+- Google Cloud project with Vertex AI API enabled (for Gemini model access)
+
+### Setup
+
 ```bash
-npm install
-npm run build
+# Clone the repo
+git clone https://github.com/DasBalvinderDas/container-blocker-analysis-mcp-server.git
+cd container-blocker-analysis-mcp-server
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # Linux/macOS
+# or: venv\Scripts\activate  # Windows
+
+# Install dependencies
+pip install -e .
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your GCP project details
+```
+
+### Google Cloud Authentication
+
+```bash
+# Authenticate with Google Cloud
+gcloud auth application-default login
+
+# Or set service account key
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/key.json"
 ```
 
 ## Usage
 
-### With Claude Desktop
+### Run with ADK CLI
 
-Add to your Claude Desktop config (`claude_desktop_config.json`):
+```bash
+# Start the ADK development UI
+adk web container_blocker_analysis
 
-```json
-{
-  "mcpServers": {
-    "container-blocker-analysis": {
-      "command": "node",
-      "args": ["/path/to/container-blocker-analysis-mcp-server/dist/index.js"]
-    }
-  }
-}
+# Or run via CLI
+adk run container_blocker_analysis
 ```
 
-### With Claude Code
+### Project Structure
 
-Add to your Claude Code MCP settings:
-
-```json
-{
-  "mcpServers": {
-    "container-blocker-analysis": {
-      "command": "node",
-      "args": ["/path/to/container-blocker-analysis-mcp-server/dist/index.js"]
-    }
-  }
-}
+```
+container_blocker_analysis/
+├── __init__.py
+├── agent.py                   # ADK agent definition (root_agent)
+├── tools/
+│   ├── __init__.py
+│   ├── analyze_code.py        # Code extraction + analysis prompt builder
+│   └── generate_report.py     # HTML/PDF/Solution report generation
+└── utils/
+    ├── __init__.py
+    ├── code_extractor.py      # Extract code from zip/git/directory/inline
+    └── report_generator.py    # HTML templates + PDF generation (ReportLab)
 ```
 
 ### Workflow Example
 
-1. Use `analyze_code` to extract and prepare code for analysis
-2. The LLM evaluates the code using the returned analysis prompt
-3. Pass the structured results to `generate_html_report` or `generate_pdf_report`
-4. For specific blockers, use `generate_solution_html` to create remediation reports
+1. User asks the agent to analyze their application code
+2. Agent calls `analyze_code` to extract and prepare code
+3. Agent evaluates the code for containerization blockers
+4. Agent calls `generate_html_report` or `generate_pdf_report` to create reports
+5. For specific blockers, agent uses `generate_solution_report` for remediation steps
+
+### Example Prompts
+
+```
+"Analyze the code in /path/to/my/app for containerization blockers and generate an HTML report"
+
+"Clone https://github.com/user/repo and check for hardcoded file paths and database connection issues"
+
+"Generate a PDF report for my-app with these issues: [paste JSON]"
+
+"Provide a solution for the hardcoded database connection blocker found in my-app"
+```
 
 ## Development
 
 ```bash
-npm run dev    # Watch mode for TypeScript
-npm run build  # Build
-npm start      # Run the server
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Lint
+ruff check .
+
+# Format
+ruff format .
+
+# Type check
+mypy container_blocker_analysis/
 ```
 
 ## License
 
-MIT
+Apache 2.0
