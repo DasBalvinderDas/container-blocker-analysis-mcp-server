@@ -17,7 +17,7 @@ import pathlib
 
 from google.adk.agents import Agent
 from google.adk.skills import load_skill_from_dir
-from google.adk.tools.mcp_tool import MCPToolset, SseConnectionParams, StdioConnectionParams
+from google.adk.tools.mcp_tool import MCPToolset, StreamableHTTPConnectionParams
 from google.adk.tools.skill_toolset import SkillToolset
 
 from .tools.analyze_code import analyze_code
@@ -30,34 +30,33 @@ from .tools.generate_report import (
 AGENT_MODEL = os.getenv("AGENT_MODEL", "gemini-2.5-flash")
 
 # ---------- Git MCP Server Configuration ----------
-# The Git MCP server provides git operations (clone, fetch, browse repos)
-# Configure via environment variables:
-#   GIT_MCP_SERVER_CMD  - command to run the git MCP server (default: npx)
-#   GIT_MCP_SERVER_ARGS - args for the command (default: -y @modelcontextprotocol/server-github)
-#   GIT_MCP_SERVER_URL  - SSE URL if using an SSE-based git MCP server instead of stdio
+# Uses GitHub Copilot MCP endpoint (StreamableHTTP).
+# Set GITHUB_TOKEN env var with your GitHub personal access token.
+
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+
+# Only the git tools we need for code analysis
+GIT_MCP_TOOL_FILTER = [
+    "get_repository",
+    "get_file_contents",
+    "list_pull_requests",
+    "get_pull_request",
+    "get_issue",
+    "list_issues",
+    "search_code",
+    "create_branch",
+    "create_or_update_file",
+    "push_files",
+]
 
 _git_mcp_toolset = None
-_git_mcp_server_url = os.getenv("GIT_MCP_SERVER_URL")
-_git_mcp_server_cmd = os.getenv("GIT_MCP_SERVER_CMD")
-
-if _git_mcp_server_url:
-    # SSE-based MCP server (e.g., remote git MCP server)
+if GITHUB_TOKEN:
     _git_mcp_toolset = MCPToolset(
-        connection_params=SseConnectionParams(url=_git_mcp_server_url),
-    )
-elif _git_mcp_server_cmd:
-    # Stdio-based MCP server (e.g., npx @modelcontextprotocol/server-github)
-    _git_mcp_args = os.getenv("GIT_MCP_SERVER_ARGS", "").split() if os.getenv("GIT_MCP_SERVER_ARGS") else []
-    _git_mcp_env = {}
-    # Pass through GitHub token if set
-    if os.getenv("GITHUB_TOKEN"):
-        _git_mcp_env["GITHUB_PERSONAL_ACCESS_TOKEN"] = os.getenv("GITHUB_TOKEN", "")
-    _git_mcp_toolset = MCPToolset(
-        connection_params=StdioConnectionParams(
-            command=_git_mcp_server_cmd,
-            args=_git_mcp_args,
-            env=_git_mcp_env if _git_mcp_env else None,
+        connection_params=StreamableHTTPConnectionParams(
+            url="https://api.githubcopilot.com/mcp/",
+            headers={"Authorization": f"Bearer {GITHUB_TOKEN}"},
         ),
+        tool_filter=GIT_MCP_TOOL_FILTER,
     )
 
 # ---------- Skills ----------
@@ -89,21 +88,24 @@ For analyzing code from Git repositories, you MUST use the Git MCP server tools.
 **DO NOT** run any git commands directly. All git operations go through the MCP server.
 
 ### Workflow for Git repos:
-1. Use the Git MCP server tools (e.g., `get_file_contents`, `search_code`, `list_files`)
-   to browse and fetch repository contents
-2. Once you have the code, either:
-   a. Pass individual file contents to `analyze_code` with `source_type='code_block'`
-   b. If the Git MCP server cloned the repo locally, use `source_type='local_directory'`
+1. Use `get_file_contents` to fetch files from a GitHub repository
+2. Use `get_repository` to get repo metadata
+3. Use `search_code` to find relevant source files in a repo
+4. Once you have the code, pass file contents to `analyze_code` with `source_type='code_block'`
 
-### Available Git MCP Server Tools (when configured):
-- Browse repository files and directories
-- Fetch file contents from any branch/commit
-- Search code within repositories
-- List repository structure
+### Available Git MCP Server Tools:
+- `get_repository` - Get repository metadata
+- `get_file_contents` - Fetch file/directory contents from any branch
+- `search_code` - Search code within repositories
+- `list_pull_requests` / `get_pull_request` - Browse PRs
+- `list_issues` / `get_issue` - Browse issues
+- `create_branch` - Create new branches
+- `create_or_update_file` - Write files to repos
+- `push_files` - Push multiple files at once
 
-If Git MCP server is not configured and a user provides a git URL, inform them to either:
-- Configure the Git MCP server (see .env.example)
-- Provide the code as a zip file or local directory instead
+If Git MCP server is not configured (GITHUB_TOKEN not set) and a user provides a git URL,
+inform them to set the GITHUB_TOKEN environment variable, or provide the code as a
+zip file or local directory instead.
 
 ## Available Skills (Workflows)
 
@@ -168,7 +170,7 @@ _tools = [
     _skill_toolset,
 ]
 
-# Add Git MCP toolset only if configured
+# Add Git MCP toolset only if GITHUB_TOKEN is configured
 if _git_mcp_toolset:
     _tools.append(_git_mcp_toolset)
 

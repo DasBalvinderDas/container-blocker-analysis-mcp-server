@@ -172,21 +172,19 @@ container_blocker_analysis/
     └── quick-scan/            # Quick readiness assessment
 ```
 
-### Git MCP Server Configuration
+### Git MCP Server (GitHub Copilot)
 
-All git operations (clone, fetch, browse) are handled by an external **Git MCP server** - no git commands run in this codebase.
+All git operations are handled via the **GitHub Copilot MCP endpoint** using `StreamableHTTPConnectionParams` - no git commands run in this codebase.
 
 Configure in `.env`:
 
 ```bash
-# Option A: Stdio-based (recommended for local dev)
-GIT_MCP_SERVER_CMD=npx
-GIT_MCP_SERVER_ARGS=-y @modelcontextprotocol/server-github
-GITHUB_TOKEN=ghp_your_token_here
-
-# Option B: SSE-based (for remote/hosted MCP servers)
-GIT_MCP_SERVER_URL=http://localhost:3000/sse
+GITHUB_TOKEN=ghp_your_personal_access_token_here
 ```
+
+The agent connects to `https://api.githubcopilot.com/mcp/` and uses a filtered set of tools:
+`get_repository`, `get_file_contents`, `search_code`, `list_pull_requests`, `get_pull_request`,
+`list_issues`, `get_issue`, `create_branch`, `create_or_update_file`, `push_files`
 
 ### Workflow Example
 
