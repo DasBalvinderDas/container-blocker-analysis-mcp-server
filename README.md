@@ -120,7 +120,7 @@ source venv/bin/activate  # Linux/macOS
 # or: venv\Scripts\activate  # Windows
 
 # Install dependencies
-pip install -e .
+pip install -r requirements.txt
 
 # Configure environment
 cp .env.example .env
@@ -194,7 +194,8 @@ container_blocker_analysis/
 
 ```bash
 # Install dev dependencies
-pip install -e ".[dev]"
+pip install -r requirements.txt
+pip install pytest ruff mypy
 
 # Lint
 ruff check .
