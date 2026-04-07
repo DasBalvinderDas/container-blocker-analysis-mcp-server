@@ -3,6 +3,8 @@
 This agent analyzes application code for containerization blockers and
 generates professional HTML/PDF reports to assist with container migration.
 
+All git operations are handled via the Git MCP server (no git commands in code).
+
 Skills (workflows) available:
 - full-analysis: Complete end-to-end analysis with HTML + PDF reports
 - blocker-report: Targeted analysis for specific blocker types
@@ -15,6 +17,7 @@ import pathlib
 
 from google.adk.agents import Agent
 from google.adk.skills import load_skill_from_dir
+from google.adk.tools.mcp_tool import MCPToolset, SseConnectionParams, StdioConnectionParams
 from google.adk.tools.skill_toolset import SkillToolset
 
 from .tools.analyze_code import analyze_code
@@ -26,7 +29,38 @@ from .tools.generate_report import (
 
 AGENT_MODEL = os.getenv("AGENT_MODEL", "gemini-2.5-flash")
 
-# Load skills from the skills/ directory
+# ---------- Git MCP Server Configuration ----------
+# The Git MCP server provides git operations (clone, fetch, browse repos)
+# Configure via environment variables:
+#   GIT_MCP_SERVER_CMD  - command to run the git MCP server (default: npx)
+#   GIT_MCP_SERVER_ARGS - args for the command (default: -y @modelcontextprotocol/server-github)
+#   GIT_MCP_SERVER_URL  - SSE URL if using an SSE-based git MCP server instead of stdio
+
+_git_mcp_toolset = None
+_git_mcp_server_url = os.getenv("GIT_MCP_SERVER_URL")
+_git_mcp_server_cmd = os.getenv("GIT_MCP_SERVER_CMD")
+
+if _git_mcp_server_url:
+    # SSE-based MCP server (e.g., remote git MCP server)
+    _git_mcp_toolset = MCPToolset(
+        connection_params=SseConnectionParams(url=_git_mcp_server_url),
+    )
+elif _git_mcp_server_cmd:
+    # Stdio-based MCP server (e.g., npx @modelcontextprotocol/server-github)
+    _git_mcp_args = os.getenv("GIT_MCP_SERVER_ARGS", "").split() if os.getenv("GIT_MCP_SERVER_ARGS") else []
+    _git_mcp_env = {}
+    # Pass through GitHub token if set
+    if os.getenv("GITHUB_TOKEN"):
+        _git_mcp_env["GITHUB_PERSONAL_ACCESS_TOKEN"] = os.getenv("GITHUB_TOKEN", "")
+    _git_mcp_toolset = MCPToolset(
+        connection_params=StdioConnectionParams(
+            command=_git_mcp_server_cmd,
+            args=_git_mcp_args,
+            env=_git_mcp_env if _git_mcp_env else None,
+        ),
+    )
+
+# ---------- Skills ----------
 SKILLS_DIR = pathlib.Path(__file__).parent / "skills"
 
 _skills = []
@@ -34,7 +68,6 @@ for skill_dir in sorted(SKILLS_DIR.iterdir()):
     if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
         _skills.append(load_skill_from_dir(skill_dir))
 
-# Create the SkillToolset with our function tools available as additional tools
 _skill_toolset = SkillToolset(
     skills=_skills,
     additional_tools=[
@@ -45,9 +78,32 @@ _skill_toolset = SkillToolset(
     ],
 )
 
+# ---------- Agent Instruction ----------
 AGENT_INSTRUCTION = """You are an expert Enterprise Architect specializing in containerization and cloud-native migration.
 
 Your role is to help users analyze their application code for containerization blockers and generate professional reports.
+
+## Git Repository Analysis (via Git MCP Server)
+
+For analyzing code from Git repositories, you MUST use the Git MCP server tools.
+**DO NOT** run any git commands directly. All git operations go through the MCP server.
+
+### Workflow for Git repos:
+1. Use the Git MCP server tools (e.g., `get_file_contents`, `search_code`, `list_files`)
+   to browse and fetch repository contents
+2. Once you have the code, either:
+   a. Pass individual file contents to `analyze_code` with `source_type='code_block'`
+   b. If the Git MCP server cloned the repo locally, use `source_type='local_directory'`
+
+### Available Git MCP Server Tools (when configured):
+- Browse repository files and directories
+- Fetch file contents from any branch/commit
+- Search code within repositories
+- List repository structure
+
+If Git MCP server is not configured and a user provides a git URL, inform them to either:
+- Configure the Git MCP server (see .env.example)
+- Provide the code as a zip file or local directory instead
 
 ## Available Skills (Workflows)
 
@@ -69,7 +125,7 @@ and `load_skill` to activate a skill's instructions when a user's request matche
 ## Direct Tool Usage
 
 You can also use tools directly without loading a skill:
-- `analyze_code` - Extract code from zip/git/directory/inline and prepare for analysis
+- `analyze_code` - Extract code from zip/directory/inline and prepare for analysis
 - `generate_html_report` - Generate styled HTML report from analysis results
 - `generate_pdf_report` - Generate PDF report from analysis results
 - `generate_solution_report` - Generate solution/remediation HTML report
@@ -103,21 +159,29 @@ Each issue must have:
 Always be thorough and reference actual code patterns found in the analysis.
 """
 
+# ---------- Build Tools List ----------
+_tools = [
+    analyze_code,
+    generate_html_report,
+    generate_pdf_report,
+    generate_solution_report,
+    _skill_toolset,
+]
+
+# Add Git MCP toolset only if configured
+if _git_mcp_toolset:
+    _tools.append(_git_mcp_toolset)
+
 root_agent = Agent(
     model=AGENT_MODEL,
     name="container_blocker_analysis",
     description=(
         "An agent that analyzes application code for containerization blockers "
         "and generates professional HTML/PDF reports to assist with container migration. "
-        "Supports analyzing code from ZIP files, Git repos, local directories, or inline code blocks. "
+        "Supports analyzing code from ZIP files, Git repos (via Git MCP server), "
+        "local directories, or inline code blocks. "
         "Provides workflow skills: full-analysis, blocker-report, solution-generator, quick-scan."
     ),
     instruction=AGENT_INSTRUCTION,
-    tools=[
-        analyze_code,
-        generate_html_report,
-        generate_pdf_report,
-        generate_solution_report,
-        _skill_toolset,
-    ],
+    tools=_tools,
 )

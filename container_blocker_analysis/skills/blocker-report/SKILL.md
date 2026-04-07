@@ -33,6 +33,11 @@ If the user's request is vague (e.g., "check networking issues"), map it to the 
 
 ### Step 2: Extract Code
 
+Determine the source type and extract code:
+- **Zip file / local directory / inline code** -> Call `analyze_code` directly
+- **Git repository URL** -> Use Git MCP server tools to fetch the code first,
+  then call `analyze_code` with the fetched content. Never run git commands directly.
+
 Call `analyze_code` with:
 - The appropriate `source_type` and `source`
 - `blocker_types`: The specific list of blockers to check

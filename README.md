@@ -37,6 +37,8 @@ The agent checks for 15 common containerization blockers:
 ### `analyze_code`
 Extracts code from the provided source and returns a structured analysis prompt for the LLM to evaluate.
 
+For git repositories, the agent uses the **Git MCP server** to fetch code first, then passes it to this tool. No git commands are run directly.
+
 **Parameters:**
 - `source_type` (required): `"code_block"` | `"zip_file"` | `"git_repo"` | `"local_directory"`
 - `source` (required): The code, file path, git URL, or directory path
@@ -170,20 +172,37 @@ container_blocker_analysis/
     └── quick-scan/            # Quick readiness assessment
 ```
 
+### Git MCP Server Configuration
+
+All git operations (clone, fetch, browse) are handled by an external **Git MCP server** - no git commands run in this codebase.
+
+Configure in `.env`:
+
+```bash
+# Option A: Stdio-based (recommended for local dev)
+GIT_MCP_SERVER_CMD=npx
+GIT_MCP_SERVER_ARGS=-y @modelcontextprotocol/server-github
+GITHUB_TOKEN=ghp_your_token_here
+
+# Option B: SSE-based (for remote/hosted MCP servers)
+GIT_MCP_SERVER_URL=http://localhost:3000/sse
+```
+
 ### Workflow Example
 
 1. User asks the agent to analyze their application code
-2. Agent calls `analyze_code` to extract and prepare code
-3. Agent evaluates the code for containerization blockers
-4. Agent calls `generate_html_report` or `generate_pdf_report` to create reports
-5. For specific blockers, agent uses `generate_solution_report` for remediation steps
+2. If source is a git repo: agent uses **Git MCP server** tools to fetch the code
+3. Agent calls `analyze_code` to prepare code for analysis
+4. Agent evaluates the code for containerization blockers
+5. Agent calls `generate_html_report` or `generate_pdf_report` to create reports
+6. For specific blockers, agent uses `generate_solution_report` for remediation steps
 
 ### Example Prompts
 
 ```
 "Analyze the code in /path/to/my/app for containerization blockers and generate an HTML report"
 
-"Clone https://github.com/user/repo and check for hardcoded file paths and database connection issues"
+"Analyze https://github.com/user/repo and check for hardcoded file paths and database connection issues"
 
 "Generate a PDF report for my-app with these issues: [paste JSON]"
 

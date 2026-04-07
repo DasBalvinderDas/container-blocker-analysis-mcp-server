@@ -2,9 +2,9 @@
 name: full-analysis
 description: >
   Complete end-to-end containerization blocker analysis workflow. Extracts code
-  from any source (zip, git repo, directory, or inline code), analyzes it for all
-  15 containerization blockers, and generates both HTML and PDF reports. Use this
-  skill when the user wants a comprehensive container-readiness assessment.
+  from any source (zip, git repo via Git MCP server, directory, or inline code),
+  analyzes it for all 15 containerization blockers, and generates both HTML and
+  PDF reports. Use this skill for a comprehensive container-readiness assessment.
 ---
 
 ## Full Containerization Blocker Analysis Workflow
@@ -13,11 +13,20 @@ Follow these steps precisely:
 
 ### Step 1: Extract and Analyze Code
 
-Call the `analyze_code` tool with the user's provided source:
-- If they provide a **git repo URL**, use `source_type: "git_repo"`
-- If they provide a **zip file path**, use `source_type: "zip_file"`
-- If they provide a **local directory path**, use `source_type: "local_directory"`
-- If they provide **inline code**, use `source_type: "code_block"`
+Determine the source type and extract code accordingly:
+
+- **Zip file path** -> Call `analyze_code` with `source_type: "zip_file"`
+- **Local directory path** -> Call `analyze_code` with `source_type: "local_directory"`
+- **Inline code** -> Call `analyze_code` with `source_type: "code_block"`
+- **Git repository URL** -> Use the **Git MCP server** workflow:
+  1. Use Git MCP server tools to browse/fetch the repository contents
+     (e.g., `get_file_contents`, `search_code`, `list_files`)
+  2. Once you have the code, call `analyze_code` with either:
+     - `source_type: "local_directory"` if the repo was cloned locally
+     - `source_type: "code_block"` with the combined file contents
+
+**IMPORTANT:** Never run git commands directly. All git operations MUST go through
+the Git MCP server tools.
 
 Set `app_name` to the application name if provided, otherwise derive it from the source.
 

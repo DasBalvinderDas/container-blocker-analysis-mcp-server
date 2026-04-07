@@ -1,14 +1,11 @@
-"""Utilities for extracting code from various sources (zip, git, directory, code block)."""
+"""Utilities for extracting code from various sources (zip, directory, code block)."""
 
 import os
 import shutil
 import tempfile
 import zipfile
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass
 from typing import Optional
-
-from git import Repo
 
 
 @dataclass
@@ -168,23 +165,6 @@ def extract_from_zip(zip_path: str) -> list[ExtractedFile]:
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
             zf.extractall(tmp_dir)
-        return _walk_directory(tmp_dir)
-    finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-
-
-def extract_from_git_repo(repo_url: str) -> list[ExtractedFile]:
-    """Clone a git repository (shallow) and extract code files."""
-    tmp_dir = tempfile.mkdtemp(prefix="cba-git-")
-    try:
-        github_user = os.getenv("GITHUB_USERNAME")
-        github_token = os.getenv("GITHUB_TOKEN")
-        clone_url = repo_url
-        if github_user and github_token and "https://" in repo_url:
-            clone_url = repo_url.replace(
-                "https://", f"https://{github_user}:{github_token}@"
-            )
-        Repo.clone_from(clone_url, tmp_dir, depth=1)
         return _walk_directory(tmp_dir)
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)

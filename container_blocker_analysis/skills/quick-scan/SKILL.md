@@ -12,7 +12,11 @@ Follow these steps precisely:
 
 ### Step 1: Extract Code
 
-Call `analyze_code` with the user's provided source. Use default blocker types (all 15).
+For zip files, local directories, or inline code: call `analyze_code` directly.
+For git repository URLs: use Git MCP server tools to fetch the code first,
+then call `analyze_code` with the fetched content. Never run git commands directly.
+
+Use default blocker types (all 15).
 
 ### Step 2: Rapid Assessment
 
